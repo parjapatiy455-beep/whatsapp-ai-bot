@@ -410,6 +410,17 @@ const HOST = '0.0.0.0';
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
+// Root Route: Serve Dashboard HTML
+app.get('/', (req, res) => {
+    const indexPath = path.join(__dirname, 'public', 'index.html');
+    if (fs.existsSync(indexPath)) {
+        res.sendFile(indexPath);
+    } else {
+        res.send('<h2>GrabNext AI Agent Running!</h2><p>public/index.html is missing on server.</p>');
+    }
+});
+
+
 
 // 1. Live Bot Status Endpoint
 app.get('/api/status', (req, res) => {
