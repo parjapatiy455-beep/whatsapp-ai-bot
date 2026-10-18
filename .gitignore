@@ -1,0 +1,16 @@
+# Node dependencies
+node_modules/
+package-lock.json
+
+# Environment & credentials (keep secrets safe)
+.env
+auth_session/
+*.session
+
+# Local state & logs
+bot_state.json
+*.log
+
+# Archives
+*.zip
+.DS_Store
