@@ -507,6 +507,48 @@ app.get('/api/activity', requireAuth, (req, res) => {
     res.json(activityLogs);
 });
 
+// ─── CODE EDITOR & AUTO-RESTART API ──────────────────────────────────────────
+// Get index.js code
+app.get('/api/code', requireAuth, (req, res) => {
+    try {
+        const filePath = path.join(__dirname, 'index.js');
+        const content = fs.readFileSync(filePath, 'utf8');
+        res.json({ content });
+    } catch (e) {
+        res.status(500).json({ error: e.message });
+    }
+});
+
+// Save index.js code
+app.post('/api/code', requireAuth, (req, res) => {
+    const { content } = req.body || {};
+    if (typeof content !== 'string' || content.trim().length === 0) {
+        return res.status(400).json({ error: 'Valid code content required' });
+    }
+    try {
+        const filePath = path.join(__dirname, 'index.js');
+        // Create backup of old code first
+        fs.writeFileSync(path.join(__dirname, 'index.backup.js'), fs.readFileSync(filePath, 'utf8'), 'utf8');
+        // Write new updated code
+        fs.writeFileSync(filePath, content, 'utf8');
+        console.log('💾 index.js updated via Web Dashboard Editor!');
+        res.json({ success: true, message: 'Code saved successfully! Click Restart to apply.' });
+    } catch (e) {
+        res.status(500).json({ error: e.message });
+    }
+});
+
+// 1-Click Server Restart (triggers Pterodactyl/Docker container auto-restart)
+app.post('/api/restart-bot', requireAuth, (req, res) => {
+    console.log('🔄 Restart requested via Web Dashboard...');
+    res.json({ success: true, message: 'Server restarting now... Reconnecting in 5 seconds.' });
+
+    // Gracefully exit; Pterodactyl daemon immediately boots up fresh process with new code
+    setTimeout(() => {
+        process.exit(0);
+    }, 1000);
+});
+
 app.listen(PORT, HOST, () => {
     console.log('\n==================================================');
     console.log(`🌐 ULTRA-FAST DASHBOARD: http://0.0.0.0:${PORT}`);

@@ -58,6 +58,10 @@
             <i class="fa-solid fa-power-off"></i>
             <span>Pause Bot</span>
           </button>
+          <button id="restartBotBtn" onclick="restartServer()" title="Restart Server & Reload Code" class="px-3.5 py-2 rounded-xl text-xs font-bold transition-all shadow-md bg-amber-600 hover:bg-amber-500 text-slate-950 flex items-center gap-1.5">
+            <i class="fa-solid fa-rotate"></i>
+            <span>Restart</span>
+          </button>
           <button onclick="logout()" title="Logout" class="px-3 py-2 rounded-xl text-xs font-bold bg-slate-800 hover:bg-slate-700 text-slate-300">
             <i class="fa-solid fa-right-from-bracket"></i>
           </button>
@@ -133,11 +137,29 @@
         </div>
       </div>
 
-      <!-- Column 2 & 3: Knowledge Base Editor & Live Activity Feed -->
+      <!-- Column 2 & 3: Tabs Container (Knowledge Base, Code Editor, Live Feed) -->
       <div class="lg:col-span-2 space-y-6">
 
-        <!-- Knowledge Base Editor Card -->
-        <div class="bg-slate-950/60 border border-slate-800 rounded-2xl p-5 shadow-xl flex flex-col h-[400px]">
+        <!-- Tabs Header Bar -->
+        <div class="flex items-center justify-between bg-slate-950/60 border border-slate-800 rounded-2xl p-2 shadow-xl">
+          <div class="flex items-center gap-2">
+            <button onclick="switchTab('knowledge')" id="tabBtnKnowledge" class="px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-2 bg-emerald-600 text-slate-950">
+              <i class="fa-solid fa-brain"></i>
+              <span>Business Knowledge</span>
+            </button>
+            <button onclick="switchTab('editor')" id="tabBtnEditor" class="px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-2 text-slate-400 hover:text-slate-100 hover:bg-slate-900">
+              <i class="fa-solid fa-code"></i>
+              <span>Index.js Code Editor</span>
+            </button>
+            <button onclick="switchTab('activity')" id="tabBtnActivity" class="px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-2 text-slate-400 hover:text-slate-100 hover:bg-slate-900">
+              <i class="fa-solid fa-comments"></i>
+              <span>Live Activity</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- TAB 1: Knowledge Base Editor Card -->
+        <div id="tabKnowledge" class="bg-slate-950/60 border border-slate-800 rounded-2xl p-5 shadow-xl flex flex-col h-[520px]">
           <div class="flex items-center justify-between mb-3">
             <div>
               <h2 class="font-bold text-sm tracking-wide text-slate-300 flex items-center gap-2">
@@ -152,8 +174,32 @@
           <textarea id="knowledgeText" class="flex-1 w-full bg-slate-900/90 border border-slate-800 rounded-xl p-4 text-xs font-mono text-slate-200 resize-none focus:outline-none focus:border-emerald-500 leading-relaxed" placeholder="Loading knowledge base..."></textarea>
         </div>
 
-        <!-- Live Messages Log Feed -->
-        <div class="bg-slate-950/60 border border-slate-800 rounded-2xl p-5 shadow-xl flex flex-col h-[320px]">
+        <!-- TAB 2: Live Code Editor for index.js -->
+        <div id="tabEditor" class="bg-slate-950/60 border border-slate-800 rounded-2xl p-5 shadow-xl flex flex-col h-[520px] hidden">
+          <div class="flex items-center justify-between mb-3">
+            <div>
+              <h2 class="font-bold text-sm tracking-wide text-slate-300 flex items-center gap-2">
+                <i class="fa-solid fa-file-code text-cyan-400"></i> Live Server Code: index.js
+              </h2>
+              <p class="text-xs text-slate-400">Modify bot logic directly from dashboard without opening FTP or Botkeep files.</p>
+            </div>
+            <div class="flex items-center gap-2">
+              <button onclick="loadCode()" class="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold rounded-xl text-xs transition flex items-center gap-1.5">
+                <i class="fa-solid fa-rotate-left"></i> Reload
+              </button>
+              <button onclick="saveCode()" id="saveCodeBtn" class="px-4 py-2 bg-cyan-600 hover:bg-cyan-500 text-slate-950 font-bold rounded-xl text-xs transition flex items-center gap-1.5 shadow-md">
+                <i class="fa-solid fa-floppy-disk"></i> Save Code
+              </button>
+              <button onclick="saveCodeAndRestart()" id="saveAndRestartBtn" class="px-4 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold rounded-xl text-xs transition flex items-center gap-1.5 shadow-md">
+                <i class="fa-solid fa-bolt"></i> Save & Restart
+              </button>
+            </div>
+          </div>
+          <textarea id="editorCodeText" spellcheck="false" class="flex-1 w-full bg-slate-900/95 border border-slate-800 rounded-xl p-4 text-xs font-mono text-slate-200 resize-none focus:outline-none focus:border-cyan-500 leading-relaxed" placeholder="Loading server code..."></textarea>
+        </div>
+
+        <!-- TAB 3: Live Messages Log Feed -->
+        <div id="tabActivity" class="bg-slate-950/60 border border-slate-800 rounded-2xl p-5 shadow-xl flex flex-col h-[520px] hidden">
           <div class="flex items-center justify-between mb-3">
             <h2 class="font-bold text-sm tracking-wide text-slate-300 flex items-center gap-2">
               <i class="fa-solid fa-comments text-cyan-400"></i> Live WhatsApp Activity Feed
@@ -417,6 +463,132 @@
           </div>
         `).join('');
       } catch (e) {}
+    }
+
+    // ─── TABS MANAGEMENT ───────────────────────────────────────────────────
+    function switchTab(tab) {
+      const tabs = ['knowledge', 'editor', 'activity'];
+      tabs.forEach(t => {
+        const el = document.getElementById('tab' + t.charAt(0).toUpperCase() + t.slice(1));
+        const btn = document.getElementById('tabBtn' + t.charAt(0).toUpperCase() + t.slice(1));
+        if (t === tab) {
+          el.classList.remove('hidden');
+          btn.className = "px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-2 bg-emerald-600 text-slate-950";
+        } else {
+          el.classList.add('hidden');
+          btn.className = "px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-2 text-slate-400 hover:text-slate-100 hover:bg-slate-900";
+        }
+      });
+      if (tab === 'editor') {
+        loadCode();
+      }
+    }
+
+    // ─── CODE EDITOR ACTIONS ─────────────────────────────────────────────────
+    async function loadCode() {
+      if (!authPass) return;
+      try {
+        const res = await fetch('/api/code', { headers: getAuthHeaders() });
+        const data = await res.json();
+        if (data.content) {
+          document.getElementById('editorCodeText').value = data.content;
+        }
+      } catch (e) {
+        alert('Code load error: ' + e.message);
+      }
+    }
+
+    async function saveCode() {
+      const content = document.getElementById('editorCodeText').value;
+      const btn = document.getElementById('saveCodeBtn');
+      btn.disabled = true;
+      btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Saving...';
+
+      try {
+        const res = await fetch('/api/code', {
+          method: 'POST',
+          headers: getAuthHeaders(),
+          body: JSON.stringify({ content })
+        });
+        const data = await res.json();
+        if (data.success) {
+          btn.innerHTML = '<i class="fa-solid fa-check"></i> Code Saved!';
+          setTimeout(() => {
+            btn.disabled = false;
+            btn.innerHTML = '<i class="fa-solid fa-floppy-disk"></i> Save Code';
+          }, 2000);
+        } else {
+          alert(data.error || 'Failed to save code');
+          btn.disabled = false;
+          btn.innerHTML = '<i class="fa-solid fa-floppy-disk"></i> Save Code';
+        }
+      } catch (e) {
+        alert('Save code error: ' + e.message);
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fa-solid fa-floppy-disk"></i> Save Code';
+      }
+    }
+
+    async function saveCodeAndRestart() {
+      if (!confirm('Kya aap code save karke server turant restart karna chahte hain?')) return;
+      const content = document.getElementById('editorCodeText').value;
+      const btn = document.getElementById('saveAndRestartBtn');
+      btn.disabled = true;
+      btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Saving & Restarting...';
+
+      try {
+        const resSave = await fetch('/api/code', {
+          method: 'POST',
+          headers: getAuthHeaders(),
+          body: JSON.stringify({ content })
+        });
+        const dataSave = await resSave.json();
+        if (!dataSave.success) {
+          alert('Save failed: ' + dataSave.error);
+          btn.disabled = false;
+          btn.innerHTML = '<i class="fa-solid fa-bolt"></i> Save & Restart';
+          return;
+        }
+
+        // Trigger restart
+        await fetch('/api/restart-bot', {
+          method: 'POST',
+          headers: getAuthHeaders()
+        });
+
+        alert('✅ Code saved! Server restart ho raha hai... 5 second me page auto-refresh ho jayega.');
+        setTimeout(() => {
+          location.reload();
+        }, 5000);
+
+      } catch (e) {
+        alert('Restart error: ' + e.message);
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fa-solid fa-bolt"></i> Save & Restart';
+      }
+    }
+
+    async function restartServer() {
+      if (!confirm('Kya aap sach me Botkeep server restart karna chahte hain?')) return;
+      const btn = document.getElementById('restartBotBtn');
+      btn.disabled = true;
+      btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Restarting...';
+
+      try {
+        const res = await fetch('/api/restart-bot', {
+          method: 'POST',
+          headers: getAuthHeaders()
+        });
+        const data = await res.json();
+        alert('🔄 ' + (data.message || 'Server restart ho raha hai...'));
+        setTimeout(() => {
+          location.reload();
+        }, 5000);
+      } catch (e) {
+        alert('Restart failed: ' + e.message);
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fa-solid fa-rotate"></i> <span>Restart</span>';
+      }
     }
 
     function initDashboard() {
