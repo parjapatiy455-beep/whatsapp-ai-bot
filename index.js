@@ -490,11 +490,17 @@ app.get('/api/activity', (req, res) => {
 });
 
 // ─── START WEB SERVER & BOT ───────────────────────────────────────────────────
-app.listen(PORT, () => {
-    _orig.log(`\n🌐 WEB DASHBOARD RUNNING AT: http://localhost:${PORT}`);
+const PORT = process.env.PORT || process.env.SERVER_PORT || 3000;
+const HOST = '0.0.0.0';
+
+app.listen(PORT, HOST, () => {
+    _orig.log(`\n==================================================`);
+    _orig.log(`🌐 WEB DASHBOARD RUNNING AT: http://${HOST}:${PORT}`);
+    _orig.log(`==================================================\n`);
 });
 
 startBot().catch(err => {
     _orig.error('❌ Fatal bot crash:', err);
     process.exit(1);
 });
+
