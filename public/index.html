@@ -9,148 +9,243 @@
   <style>
     @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
     body { font-family: 'Plus Jakarta Sans', sans-serif; }
-    .glass { background: rgba(255, 255, 255, 0.85); backdrop-filter: blur(12px); }
   </style>
 </head>
 <body class="bg-slate-900 text-slate-100 min-h-screen">
-  <!-- Navbar -->
-  <header class="border-b border-slate-800 bg-slate-950/80 sticky top-0 z-50 backdrop-blur-md">
-    <div class="max-w-7xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
-      <div class="flex items-center gap-3">
-        <div class="h-10 w-10 rounded-xl bg-gradient-to-tr from-emerald-500 to-teal-400 flex items-center justify-center shadow-lg shadow-emerald-500/20">
-          <i class="fa-brands fa-whatsapp text-2xl text-slate-950"></i>
-        </div>
+
+  <!-- PASSWORD LOGIN MODAL -->
+  <div id="loginModal" class="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/90 backdrop-blur-md px-4">
+    <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6 sm:p-8 max-w-sm w-full shadow-2xl text-center">
+      <div class="h-14 w-14 rounded-2xl bg-gradient-to-tr from-emerald-500 to-teal-400 mx-auto flex items-center justify-center shadow-lg shadow-emerald-500/20 mb-4">
+        <i class="fa-solid fa-lock text-2xl text-slate-950"></i>
+      </div>
+      <h2 class="text-xl font-extrabold text-white">GrabNext Admin</h2>
+      <p class="text-xs text-slate-400 mt-1">Dashboard access karne ke liye PIN enter karein</p>
+
+      <form onsubmit="handleLogin(event)" class="mt-6 space-y-4">
         <div>
-          <h1 class="font-extrabold text-lg tracking-tight bg-gradient-to-r from-emerald-400 to-teal-300 bg-clip-text text-transparent">GrabNext AI Agent</h1>
-          <p class="text-xs text-slate-400">24/7 WhatsApp Intelligent Support</p>
+          <input type="password" id="pinInput" maxlength="10" placeholder="Enter PIN (e.g. 2580)" autofocus
+            class="w-full text-center tracking-widest text-lg font-bold bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-emerald-500 transition">
+          <p id="pinError" class="text-xs text-rose-400 mt-2 hidden"></p>
         </div>
-      </div>
-      <div class="flex items-center gap-3">
-        <span id="botStateBadge" class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/30">
-          <span class="h-2 w-2 rounded-full bg-emerald-400 animate-pulse"></span>
-          <span>ONLINE</span>
-        </span>
-        <button id="toggleBotBtn" onclick="toggleBotState()" class="px-4 py-2 rounded-xl text-xs font-bold transition-all shadow-md bg-rose-600 hover:bg-rose-500 text-white flex items-center gap-2">
-          <i class="fa-solid fa-power-off"></i>
-          <span>Pause Bot</span>
+        <button type="submit" id="loginBtn" class="w-full py-3 bg-emerald-600 hover:bg-emerald-500 text-slate-950 font-extrabold rounded-xl transition shadow-lg shadow-emerald-600/20">
+          Unlock Dashboard <i class="fa-solid fa-arrow-right ml-1"></i>
         </button>
-      </div>
+      </form>
     </div>
-  </header>
+  </div>
 
-  <!-- Main Content Grid -->
-  <main class="max-w-7xl mx-auto px-4 sm:px-6 py-6 grid grid-cols-1 lg:grid-cols-3 gap-6">
-
-    <!-- Column 1: Connection & Live Pairing -->
-    <div class="space-y-6">
-      <!-- WhatsApp Status Card -->
-      <div class="bg-slate-950/60 border border-slate-800 rounded-2xl p-5 shadow-xl">
-        <div class="flex items-center justify-between mb-4">
-          <h2 class="font-bold text-sm tracking-wide text-slate-300 flex items-center gap-2">
-            <i class="fa-solid fa-link text-emerald-400"></i> WhatsApp Connection
-          </h2>
-          <span id="connStatusText" class="text-xs px-2.5 py-0.5 rounded-md font-semibold bg-slate-800 text-slate-300">Checking...</span>
-        </div>
-
-        <div id="pairingCodeContainer" class="p-4 rounded-xl bg-slate-900 border border-slate-800 text-center my-3 hidden">
-          <p class="text-xs text-slate-400 mb-1">Your WhatsApp Pairing Code:</p>
-          <div id="pairingCodeDisplay" class="text-2xl font-mono font-black text-amber-400 tracking-wider">---- ----</div>
-          <p class="text-[11px] text-slate-500 mt-2">Open WhatsApp > Linked Devices > Link with phone number</p>
-        </div>
-
-        <div id="qrCodeContainer" class="p-4 rounded-xl bg-slate-900 border border-slate-800 text-center my-3 hidden">
-          <p class="text-xs text-slate-400 mb-2">Scan QR Code from WhatsApp:</p>
-          <img id="qrCodeImg" class="mx-auto rounded-lg shadow-md max-w-[200px]" alt="Scan QR">
-        </div>
-
-        <div id="linkedInfoContainer" class="p-4 rounded-xl bg-emerald-950/20 border border-emerald-900/40 text-center my-3 hidden">
-          <i class="fa-solid fa-circle-check text-3xl text-emerald-400 mb-2"></i>
-          <p class="text-sm font-semibold text-emerald-300">WhatsApp Is Linked & Ready!</p>
-          <p class="text-xs text-slate-400 mt-1">Listening and auto-replying to incoming chats.</p>
-        </div>
-
-        <div class="pt-3 border-t border-slate-800/80 flex gap-2">
-          <input type="text" id="phoneInput" placeholder="91XXXXXXXXXX" class="flex-1 bg-slate-900 border border-slate-700 px-3 py-2 rounded-xl text-xs text-slate-100 focus:outline-none focus:border-emerald-500">
-          <button onclick="requestPairing()" class="px-3 py-2 bg-emerald-600 hover:bg-emerald-500 text-slate-950 font-bold rounded-xl text-xs transition flex items-center gap-1.5">
-            <i class="fa-solid fa-key"></i> Get Code
-          </button>
-        </div>
-      </div>
-
-      <!-- Quick Metrics -->
-      <div class="grid grid-cols-2 gap-3">
-        <div class="bg-slate-950/60 border border-slate-800 rounded-2xl p-4">
-          <div class="text-slate-400 text-xs flex items-center gap-1.5"><i class="fa-solid fa-bolt text-amber-400"></i> AI Model</div>
-          <div id="statModel" class="text-sm font-bold text-slate-200 mt-1">gemini-2.5-flash</div>
-          <span class="text-[10px] text-emerald-400">Ultra-fast sub-second</span>
-        </div>
-        <div class="bg-slate-950/60 border border-slate-800 rounded-2xl p-4">
-          <div class="text-slate-400 text-xs flex items-center gap-1.5"><i class="fa-solid fa-shield-halved text-blue-400"></i> Delivery Mode</div>
-          <div class="text-sm font-bold text-slate-200 mt-1">Zero Drop v6.0</div>
-          <span class="text-[10px] text-blue-400">Concurrent workers</span>
-        </div>
-      </div>
-
-      <!-- AI Live Tester -->
-      <div class="bg-slate-950/60 border border-slate-800 rounded-2xl p-5 shadow-xl">
-        <h2 class="font-bold text-sm tracking-wide text-slate-300 mb-3 flex items-center gap-2">
-          <i class="fa-solid fa-vial text-purple-400"></i> AI Response Playground
-        </h2>
-        <div class="space-y-3">
-          <input type="text" id="testQuery" placeholder="Ask e.g. Video editing bundle kitne ka hai?" class="w-full bg-slate-900 border border-slate-700 px-3 py-2 rounded-xl text-xs text-slate-100 focus:outline-none focus:border-purple-500">
-          <button onclick="testAiPrompt()" id="testBtn" class="w-full py-2 bg-purple-600 hover:bg-purple-500 text-white font-bold rounded-xl text-xs transition flex items-center justify-center gap-1.5 shadow-md">
-            <i class="fa-solid fa-paper-plane"></i> Test AI Response
-          </button>
-          <div id="testResultBox" class="p-3 bg-slate-900 border border-slate-800 rounded-xl text-xs text-slate-300 min-h-[60px] whitespace-pre-wrap font-mono hidden"></div>
-        </div>
-      </div>
-    </div>
-
-    <!-- Column 2 & 3: Knowledge Base Editor & Live Activity Feed -->
-    <div class="lg:col-span-2 space-y-6">
-
-      <!-- Knowledge Base Editor Card -->
-      <div class="bg-slate-950/60 border border-slate-800 rounded-2xl p-5 shadow-xl flex flex-col h-[400px]">
-        <div class="flex items-center justify-between mb-3">
-          <div>
-            <h2 class="font-bold text-sm tracking-wide text-slate-300 flex items-center gap-2">
-              <i class="fa-solid fa-brain text-emerald-400"></i> Business Knowledge Base & System Prompt
-            </h2>
-            <p class="text-xs text-slate-400">Edit business details, products, prices, and links live. Changes apply instantly!</p>
+  <!-- MAIN DASHBOARD WRAPPER (HIDDEN UNTIL UNLOCKED) -->
+  <div id="dashboardApp" class="hidden">
+    <!-- Navbar -->
+    <header class="border-b border-slate-800 bg-slate-950/80 sticky top-0 z-40 backdrop-blur-md">
+      <div class="max-w-7xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
+        <div class="flex items-center gap-3">
+          <div class="h-10 w-10 rounded-xl bg-gradient-to-tr from-emerald-500 to-teal-400 flex items-center justify-center shadow-lg shadow-emerald-500/20">
+            <i class="fa-brands fa-whatsapp text-2xl text-slate-950"></i>
           </div>
-          <button onclick="saveKnowledge()" id="saveKnowledgeBtn" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-slate-950 font-bold rounded-xl text-xs transition flex items-center gap-1.5 shadow-md">
-            <i class="fa-solid fa-floppy-disk"></i> Save & Apply
+          <div>
+            <h1 class="font-extrabold text-lg tracking-tight bg-gradient-to-r from-emerald-400 to-teal-300 bg-clip-text text-transparent">GrabNext AI Agent</h1>
+            <p class="text-xs text-slate-400">24/7 WhatsApp Intelligent Support</p>
+          </div>
+        </div>
+        <div class="flex items-center gap-3">
+          <span id="botStateBadge" class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/30">
+            <span class="h-2 w-2 rounded-full bg-emerald-400 animate-pulse"></span>
+            <span>ONLINE</span>
+          </span>
+          <button id="toggleBotBtn" onclick="toggleBotState()" class="px-4 py-2 rounded-xl text-xs font-bold transition-all shadow-md bg-rose-600 hover:bg-rose-500 text-white flex items-center gap-2">
+            <i class="fa-solid fa-power-off"></i>
+            <span>Pause Bot</span>
+          </button>
+          <button onclick="logout()" title="Logout" class="px-3 py-2 rounded-xl text-xs font-bold bg-slate-800 hover:bg-slate-700 text-slate-300">
+            <i class="fa-solid fa-right-from-bracket"></i>
           </button>
         </div>
-        <textarea id="knowledgeText" class="flex-1 w-full bg-slate-900/90 border border-slate-800 rounded-xl p-4 text-xs font-mono text-slate-200 resize-none focus:outline-none focus:border-emerald-500 leading-relaxed" placeholder="Loading knowledge base..."></textarea>
       </div>
+    </header>
 
-      <!-- Live Messages Log Feed -->
-      <div class="bg-slate-950/60 border border-slate-800 rounded-2xl p-5 shadow-xl flex flex-col h-[320px]">
-        <div class="flex items-center justify-between mb-3">
-          <h2 class="font-bold text-sm tracking-wide text-slate-300 flex items-center gap-2">
-            <i class="fa-solid fa-comments text-cyan-400"></i> Live WhatsApp Activity Feed
+    <!-- Main Content Grid -->
+    <main class="max-w-7xl mx-auto px-4 sm:px-6 py-6 grid grid-cols-1 lg:grid-cols-3 gap-6">
+
+      <!-- Column 1: Connection & Live Pairing -->
+      <div class="space-y-6">
+        <!-- WhatsApp Status Card -->
+        <div class="bg-slate-950/60 border border-slate-800 rounded-2xl p-5 shadow-xl">
+          <div class="flex items-center justify-between mb-4">
+            <h2 class="font-bold text-sm tracking-wide text-slate-300 flex items-center gap-2">
+              <i class="fa-solid fa-link text-emerald-400"></i> WhatsApp Connection
+            </h2>
+            <span id="connStatusText" class="text-xs px-2.5 py-0.5 rounded-md font-semibold bg-slate-800 text-slate-300">Checking...</span>
+          </div>
+
+          <div id="pairingCodeContainer" class="p-4 rounded-xl bg-slate-900 border border-slate-800 text-center my-3 hidden">
+            <p class="text-xs text-slate-400 mb-1">Your WhatsApp Pairing Code:</p>
+            <div id="pairingCodeDisplay" class="text-2xl font-mono font-black text-amber-400 tracking-wider">---- ----</div>
+            <p class="text-[11px] text-slate-500 mt-2">Open WhatsApp > Linked Devices > Link with phone number</p>
+          </div>
+
+          <div id="qrCodeContainer" class="p-4 rounded-xl bg-slate-900 border border-slate-800 text-center my-3 hidden">
+            <p class="text-xs text-slate-400 mb-2">Scan QR Code from WhatsApp:</p>
+            <img id="qrCodeImg" class="mx-auto rounded-lg shadow-md max-w-[200px]" alt="Scan QR">
+          </div>
+
+          <div id="linkedInfoContainer" class="p-4 rounded-xl bg-emerald-950/20 border border-emerald-900/40 text-center my-3 hidden">
+            <i class="fa-solid fa-circle-check text-3xl text-emerald-400 mb-2"></i>
+            <p class="text-sm font-semibold text-emerald-300">WhatsApp Is Linked & Ready!</p>
+            <p class="text-xs text-slate-400 mt-1">Listening and auto-replying to incoming chats.</p>
+          </div>
+
+          <div class="pt-3 border-t border-slate-800/80 flex gap-2">
+            <input type="text" id="phoneInput" placeholder="91XXXXXXXXXX" class="flex-1 bg-slate-900 border border-slate-700 px-3 py-2 rounded-xl text-xs text-slate-100 focus:outline-none focus:border-emerald-500">
+            <button onclick="requestPairing()" class="px-3 py-2 bg-emerald-600 hover:bg-emerald-500 text-slate-950 font-bold rounded-xl text-xs transition flex items-center gap-1.5">
+              <i class="fa-solid fa-key"></i> Get Code
+            </button>
+          </div>
+        </div>
+
+        <!-- Quick Metrics -->
+        <div class="grid grid-cols-2 gap-3">
+          <div class="bg-slate-950/60 border border-slate-800 rounded-2xl p-4">
+            <div class="text-slate-400 text-xs flex items-center gap-1.5"><i class="fa-solid fa-bolt text-amber-400"></i> AI Model</div>
+            <div id="statModel" class="text-sm font-bold text-slate-200 mt-1">gemini-2.5-flash</div>
+            <span class="text-[10px] text-emerald-400">Sub-second latency</span>
+          </div>
+          <div class="bg-slate-950/60 border border-slate-800 rounded-2xl p-4">
+            <div class="text-slate-400 text-xs flex items-center gap-1.5"><i class="fa-solid fa-shield-halved text-blue-400"></i> Architecture</div>
+            <div class="text-sm font-bold text-slate-200 mt-1">Enterprise v8.0</div>
+            <span class="text-[10px] text-blue-400">Zero Drop Guarantee</span>
+          </div>
+        </div>
+
+        <!-- AI Live Tester -->
+        <div class="bg-slate-950/60 border border-slate-800 rounded-2xl p-5 shadow-xl">
+          <h2 class="font-bold text-sm tracking-wide text-slate-300 mb-3 flex items-center gap-2">
+            <i class="fa-solid fa-vial text-purple-400"></i> AI Response Playground
           </h2>
-          <button onclick="fetchActivity()" class="text-xs text-slate-400 hover:text-slate-200 flex items-center gap-1">
-            <i class="fa-solid fa-rotate"></i> Refresh
-          </button>
-        </div>
-        <div id="activityLogs" class="flex-1 overflow-y-auto space-y-2 pr-2 font-mono text-xs">
-          <div class="text-slate-500 text-center py-8">Waiting for incoming messages...</div>
+          <div class="space-y-3">
+            <input type="text" id="testQuery" placeholder="Ask e.g. Video editing bundle kitne ka hai?" class="w-full bg-slate-900 border border-slate-700 px-3 py-2 rounded-xl text-xs text-slate-100 focus:outline-none focus:border-purple-500">
+            <button onclick="testAiPrompt()" id="testBtn" class="w-full py-2 bg-purple-600 hover:bg-purple-500 text-white font-bold rounded-xl text-xs transition flex items-center justify-center gap-1.5 shadow-md">
+              <i class="fa-solid fa-paper-plane"></i> Test AI Response
+            </button>
+            <div id="testResultBox" class="p-3 bg-slate-900 border border-slate-800 rounded-xl text-xs text-slate-300 min-h-[60px] whitespace-pre-wrap font-mono hidden"></div>
+          </div>
         </div>
       </div>
 
-    </div>
+      <!-- Column 2 & 3: Knowledge Base Editor & Live Activity Feed -->
+      <div class="lg:col-span-2 space-y-6">
 
-  </main>
+        <!-- Knowledge Base Editor Card -->
+        <div class="bg-slate-950/60 border border-slate-800 rounded-2xl p-5 shadow-xl flex flex-col h-[400px]">
+          <div class="flex items-center justify-between mb-3">
+            <div>
+              <h2 class="font-bold text-sm tracking-wide text-slate-300 flex items-center gap-2">
+                <i class="fa-solid fa-brain text-emerald-400"></i> Business Knowledge Base & System Prompt
+              </h2>
+              <p class="text-xs text-slate-400">Edit business details, products, prices, and links live. Changes apply instantly!</p>
+            </div>
+            <button onclick="saveKnowledge()" id="saveKnowledgeBtn" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-slate-950 font-bold rounded-xl text-xs transition flex items-center gap-1.5 shadow-md">
+              <i class="fa-solid fa-floppy-disk"></i> Save & Apply
+            </button>
+          </div>
+          <textarea id="knowledgeText" class="flex-1 w-full bg-slate-900/90 border border-slate-800 rounded-xl p-4 text-xs font-mono text-slate-200 resize-none focus:outline-none focus:border-emerald-500 leading-relaxed" placeholder="Loading knowledge base..."></textarea>
+        </div>
+
+        <!-- Live Messages Log Feed -->
+        <div class="bg-slate-950/60 border border-slate-800 rounded-2xl p-5 shadow-xl flex flex-col h-[320px]">
+          <div class="flex items-center justify-between mb-3">
+            <h2 class="font-bold text-sm tracking-wide text-slate-300 flex items-center gap-2">
+              <i class="fa-solid fa-comments text-cyan-400"></i> Live WhatsApp Activity Feed
+            </h2>
+            <button onclick="fetchActivity()" class="text-xs text-slate-400 hover:text-slate-200 flex items-center gap-1">
+              <i class="fa-solid fa-rotate"></i> Refresh
+            </button>
+          </div>
+          <div id="activityLogs" class="flex-1 overflow-y-auto space-y-2 pr-2 font-mono text-xs">
+            <div class="text-slate-500 text-center py-8">Waiting for incoming messages...</div>
+          </div>
+        </div>
+
+      </div>
+
+    </main>
+  </div>
 
   <script>
-    async function loadStatus() {
+    let authPass = localStorage.getItem('grabnext_admin_pin') || '';
+
+    function getAuthHeaders() {
+      return {
+        'Content-Type': 'application/json',
+        'x-admin-password': authPass
+      };
+    }
+
+    async function handleLogin(e) {
+      if (e) e.preventDefault();
+      const pin = document.getElementById('pinInput').value.trim();
+      const errEl = document.getElementById('pinError');
+      const btn = document.getElementById('loginBtn');
+      errEl.classList.add('hidden');
+
+      if (!pin) {
+        errEl.textContent = 'Kripya PIN enter karein';
+        errEl.classList.remove('hidden');
+        return;
+      }
+
+      btn.disabled = true;
+      btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Checking...';
+
       try {
-        const res = await fetch('/api/status');
+        const res = await fetch('/api/verify-auth', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ password: pin })
+        });
         const data = await res.json();
 
-        // 1. Bot state toggle
+        if (res.ok && data.success) {
+          authPass = pin;
+          localStorage.setItem('grabnext_admin_pin', pin);
+          document.getElementById('loginModal').classList.add('hidden');
+          document.getElementById('dashboardApp').classList.remove('hidden');
+          initDashboard();
+        } else {
+          errEl.textContent = data.error || 'Galat Password! (Try: 2580)';
+          errEl.classList.remove('hidden');
+        }
+      } catch (err) {
+        errEl.textContent = 'Server se connect nahi ho paya';
+        errEl.classList.remove('hidden');
+      } finally {
+        btn.disabled = false;
+        btn.innerHTML = 'Unlock Dashboard <i class="fa-solid fa-arrow-right ml-1"></i>';
+      }
+    }
+
+    function logout() {
+      localStorage.removeItem('grabnext_admin_pin');
+      authPass = '';
+      document.getElementById('dashboardApp').classList.add('hidden');
+      document.getElementById('loginModal').classList.remove('hidden');
+      document.getElementById('pinInput').value = '';
+    }
+
+    // Auto verify saved session
+    if (authPass) {
+      document.getElementById('pinInput').value = authPass;
+      handleLogin();
+    }
+
+    async function loadStatus() {
+      if (!authPass) return;
+      try {
+        const res = await fetch('/api/status', { headers: getAuthHeaders() });
+        if (res.status === 401) return logout();
+        const data = await res.json();
+
         const badge = document.getElementById('botStateBadge');
         const btn = document.getElementById('toggleBotBtn');
         if (data.active) {
@@ -165,7 +260,6 @@
           btn.innerHTML = '<i class="fa-solid fa-play"></i><span>Resume Bot</span>';
         }
 
-        // 2. WhatsApp connection status
         const connText = document.getElementById('connStatusText');
         const pairBox = document.getElementById('pairingCodeContainer');
         const pairCodeDisplay = document.getElementById('pairingCodeDisplay');
@@ -202,16 +296,12 @@
         if (data.activeModel) {
           document.getElementById('statModel').textContent = data.activeModel;
         }
-
-      } catch (e) {
-        console.error('Failed to load status:', e);
-      }
+      } catch (e) {}
     }
 
     async function toggleBotState() {
       try {
-        const res = await fetch('/api/toggle', { method: 'POST' });
-        const data = await res.json();
+        const res = await fetch('/api/toggle', { method: 'POST', headers: getAuthHeaders() });
         loadStatus();
       } catch (e) {
         alert('Error toggling bot status');
@@ -219,13 +309,12 @@
     }
 
     async function loadKnowledge() {
+      if (!authPass) return;
       try {
-        const res = await fetch('/api/knowledge');
+        const res = await fetch('/api/knowledge', { headers: getAuthHeaders() });
         const data = await res.json();
         document.getElementById('knowledgeText').value = data.content || '';
-      } catch (e) {
-        console.error('Failed to fetch knowledge:', e);
-      }
+      } catch (e) {}
     }
 
     async function saveKnowledge() {
@@ -236,7 +325,7 @@
       try {
         const res = await fetch('/api/knowledge', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: getAuthHeaders(),
           body: JSON.stringify({ content: text })
         });
         const data = await res.json();
@@ -267,7 +356,7 @@
       try {
         const res = await fetch('/api/test-ai', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: getAuthHeaders(),
           body: JSON.stringify({ query: q })
         });
         const data = await res.json();
@@ -289,7 +378,7 @@
       try {
         const res = await fetch('/api/request-pairing', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: getAuthHeaders(),
           body: JSON.stringify({ phone })
         });
         const data = await res.json();
@@ -305,8 +394,9 @@
     }
 
     async function fetchActivity() {
+      if (!authPass) return;
       try {
-        const res = await fetch('/api/activity');
+        const res = await fetch('/api/activity', { headers: getAuthHeaders() });
         const logs = await res.json();
         const container = document.getElementById('activityLogs');
         if (!logs || logs.length === 0) {
@@ -329,14 +419,15 @@
       } catch (e) {}
     }
 
-    // Auto poll every 4 seconds
-    loadStatus();
-    loadKnowledge();
-    fetchActivity();
-    setInterval(() => {
+    function initDashboard() {
       loadStatus();
+      loadKnowledge();
       fetchActivity();
-    }, 4000);
+      setInterval(() => {
+        loadStatus();
+        fetchActivity();
+      }, 4000);
+    }
   </script>
 </body>
 </html>
