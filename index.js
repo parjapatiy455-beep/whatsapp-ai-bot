@@ -318,6 +318,21 @@ function extractText(msg) {
     ).trim();
 }
 
+// ─── ADMIN DETECTOR ───────────────────────────────────────────────────────────
+function isAdminUser(msg, from, fromMe) {
+    // 1. If sent from bot's own WhatsApp account (self-chat / same account)
+    if (fromMe) return true;
+
+    // 2. If sender phone matches ADMIN_PHONE_RAW
+    if (ADMIN_PHONE_RAW) {
+        const par = (msg && msg.key && msg.key.participant) ? msg.key.participant : '';
+        if (from.startsWith(ADMIN_PHONE_RAW + '@') || par.startsWith(ADMIN_PHONE_RAW + '@')) {
+            return true;
+        }
+    }
+    return false;
+}
+
 // ─── CORE MESSAGE HANDLER ─────────────────────────────────────────────────────
 async function handleMessage(sock, msg) {
     const from   = (msg && msg.key && msg.key.remoteJid) ? msg.key.remoteJid : '';
@@ -349,27 +364,37 @@ async function handleMessage(sock, msg) {
     _orig.log('\n📩 [MSG INBOUND] from=' + from + ' | fromMe=' + fromMe + ' | text="' + text + '"');
 
     // ── 1. CONTROL COMMANDS (.bot on / off / status / help) ────────────────────
-    if (cleanLower === '.bot off') {
-        saveBotState(false);
-        await deliverReply(sock, from, '🔴 *Bot PAUSED* — Customers ko ab AI reply nahi jayega.');
-        _orig.log('🛑 Bot PAUSED');
-        return;
-    }
-    if (cleanLower === '.bot on') {
-        saveBotState(true);
-        await deliverReply(sock, from, '🟢 *Bot ACTIVE* — Auto-reply chalu ho gaya hai! Direct message par AI reply karega.');
-        _orig.log('▶️ Bot ACTIVATED');
-        return;
-    }
-    if (cleanLower === '.bot status') {
-        const st = isBotActive ? '🟢 ACTIVE' : '🔴 PAUSED';
-        const up = Math.round((Date.now() - BOOT_TIME) / 60000);
-        await deliverReply(sock, from, '📊 *Bot Status Report*\nStatus: *' + st + '*\nModel: *' + activeModelName + '*\nUptime: *' + up + ' min*\nTotal Logs: ' + activityLogs.length);
-        return;
-    }
-    if (cleanLower === '.bot help') {
-        await deliverReply(sock, from, '🤖 *Available Commands:*\n.bot on — Bot chalu karein\n.bot off — Bot band karein\n.bot status — Status check karein\n\n💡 *Note:* Kisi bhi normal message ("Hi", "products", "price") par bot DIRECT reply karega! (.test likhne ki zaroorat nahi hai)');
-        return;
+    if (cleanLower.startsWith('.bot')) {
+        const isAuthAdmin = isAdminUser(msg, from, fromMe);
+        if (!isAuthAdmin) {
+            _orig.log('⚠️ Unauthorized user tried control command: ' + from + ' | ' + cleanLower);
+            // Ignore command from non-admin or reply friendly notice
+            await deliverReply(sock, from, '❌ *Access Denied:* Yeh command sirf admin ke liye reserved hai.');
+            return;
+        }
+
+        if (cleanLower === '.bot off') {
+            saveBotState(false);
+            await deliverReply(sock, from, '🔴 *Bot PAUSED* — Customers ko ab AI reply nahi jayega.');
+            _orig.log('🛑 Bot PAUSED by Admin: ' + from);
+            return;
+        }
+        if (cleanLower === '.bot on') {
+            saveBotState(true);
+            await deliverReply(sock, from, '🟢 *Bot ACTIVE* — Auto-reply chalu ho gaya hai! Direct message par AI reply karega.');
+            _orig.log('▶️ Bot ACTIVATED by Admin: ' + from);
+            return;
+        }
+        if (cleanLower === '.bot status') {
+            const st = isBotActive ? '🟢 ACTIVE' : '🔴 PAUSED';
+            const up = Math.round((Date.now() - BOOT_TIME) / 60000);
+            await deliverReply(sock, from, '📊 *Bot Status Report*\nStatus: *' + st + '*\nModel: *' + activeModelName + '*\nUptime: *' + up + ' min*\nTotal Logs: ' + activityLogs.length);
+            return;
+        }
+        if (cleanLower === '.bot help') {
+            await deliverReply(sock, from, '🤖 *Admin Commands:*\n.bot on — Bot chalu karein\n.bot off — Bot band karein\n.bot status — Status check karein\n\n💡 *Note:* Kisi bhi normal message par bot direct AI reply deta hai.');
+            return;
+        }
     }
 
     // ── 2. CHECK IF BOT IS PAUSED ─────────────────────────────────────────────
