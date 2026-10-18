@@ -97,7 +97,10 @@
           <div id="linkedInfoContainer" class="p-4 rounded-xl bg-emerald-950/20 border border-emerald-900/40 text-center my-3 hidden">
             <i class="fa-solid fa-circle-check text-3xl text-emerald-400 mb-2"></i>
             <p class="text-sm font-semibold text-emerald-300">WhatsApp Is Linked & Ready!</p>
-            <p class="text-xs text-slate-400 mt-1">Listening and auto-replying to incoming chats.</p>
+            <p class="text-xs text-slate-400 mt-1 mb-3">Listening and auto-replying to incoming chats.</p>
+            <button onclick="disconnectWhatsApp()" id="disconnectWhatsAppBtn" class="px-3.5 py-1.5 bg-rose-600/20 hover:bg-rose-600/30 text-rose-300 border border-rose-500/40 font-bold rounded-xl text-xs transition inline-flex items-center gap-1.5">
+              <i class="fa-solid fa-arrow-right-from-bracket"></i> Disconnect / Logout
+            </button>
           </div>
 
           <div class="pt-3 border-t border-slate-800/80 flex gap-2">
@@ -588,6 +591,31 @@
         alert('Restart failed: ' + e.message);
         btn.disabled = false;
         btn.innerHTML = '<i class="fa-solid fa-rotate"></i> <span>Restart</span>';
+      }
+    }
+
+    async function disconnectWhatsApp() {
+      if (!confirm('Kya aap sach me WhatsApp disconnect / logout karna chahte hain? Isse session delete ho jayega aur aap dobara naye number ya code se link kar sakenge.')) return;
+      const btn = document.getElementById('disconnectWhatsAppBtn');
+      if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Disconnecting...';
+      }
+
+      try {
+        const res = await fetch('/api/disconnect-whatsapp', {
+          method: 'POST',
+          headers: getAuthHeaders()
+        });
+        const data = await res.json();
+        alert('✅ ' + (data.message || 'WhatsApp disconnected! Naya pairing code generate karne ke liye number enter karein.'));
+        loadStatus();
+      } catch (e) {
+        alert('Disconnect failed: ' + e.message);
+        if (btn) {
+          btn.disabled = false;
+          btn.innerHTML = '<i class="fa-solid fa-arrow-right-from-bracket"></i> Disconnect / Logout';
+        }
       }
     }
 

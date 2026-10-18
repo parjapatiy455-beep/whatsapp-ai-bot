@@ -503,6 +503,39 @@ app.post('/api/request-pairing', requireAuth, async (req, res) => {
     }
 });
 
+// Disconnect / Unlink WhatsApp from Dashboard
+app.post('/api/disconnect-whatsapp', requireAuth, async (req, res) => {
+    console.log('⚠️ Disconnect / Unlink WhatsApp requested from Dashboard...');
+    try {
+        if (activeSocket) {
+            try {
+                await activeSocket.logout();
+            } catch (err) {}
+            try {
+                activeSocket.end();
+            } catch (err) {}
+        }
+        
+        // Remove auth_session folder contents so fresh pairing code can be generated
+        const sessionPath = path.join(__dirname, 'auth_session');
+        if (fs.existsSync(sessionPath)) {
+            fs.rmSync(sessionPath, { recursive: true, force: true });
+            console.log('🗑️ auth_session cleared for new login.');
+        }
+
+        res.json({ success: true, message: 'WhatsApp unlinked successfully! Reconnecting for fresh pairing...' });
+
+        // Trigger fresh connection in 1.5s
+        setTimeout(() => {
+            connectToWhatsApp();
+        }, 1500);
+
+    } catch (e) {
+        console.error('Disconnect error:', e.message);
+        res.status(500).json({ error: e.message });
+    }
+});
+
 app.get('/api/activity', requireAuth, (req, res) => {
     res.json(activityLogs);
 });
