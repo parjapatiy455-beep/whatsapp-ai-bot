@@ -1,15 +1,18 @@
 /**
  * ============================================================================
- * WHATSAPP AI CUSTOMER SUPPORT BOT — PRODUCTION v10.1 (FINAL EXPERT FIX)
+ * WHATSAPP AI CUSTOMER SUPPORT BOT — PRODUCTION v11.0 (DIRECT WORK FIX)
  * ============================================================================
- * FIXES IN v10.1:
- *  1. ADMIN SELF-CHAT: When admin types ".bot on" to their OWN number,
- *     WhatsApp sends it with fromMe=true. We allow dot-commands from self-chat.
- *  2. ADMIN OTHER DEVICE: fromMe=false + phone number 917500167987 → admin.
- *  3. CUSTOMER: fromMe=false + not admin phone → AI reply (when bot active).
- *  4. BAD MAC FIX: getMessage fallback prevents "Waiting for this message".
- *  5. Session: retryRequestDelayMs=2000, connectTimeoutMs=60000.
- *  6. NEVER use quoted messages → no @lid delivery failure.
+ * USER REQUIREMENT:
+ *  1. ".test" bilkul HATA DIYA! Admin aur customer dono se DIRECT message pe
+ *     AI reply karega (jaise "hi", "products list", "kya price hai").
+ *  2. Self-chat (fromMe=true): Bot ke apne replies ko ignore karega (by botSentMsgIds),
+ *     lekin jab Admin khud kuch bhi type karega (bina kisi command ke),
+ *     toh direct AI reply dega!
+ *  3. Admin control commands (.bot on, .bot off, .bot status, .bot help)
+ *     abhi bhi available hain bot pause/resume karne ke liye.
+ *  4. Other customers (fromMe=false): Har incoming message par direct AI reply!
+ *  5. Upsert types: handles both 'notify' and 'append'.
+ *  6. Safe send to both standard JIDs and @lid Multi-Device JIDs.
  * ============================================================================
  */
 
@@ -33,11 +36,9 @@ const { GoogleGenerativeAI } = require('@google/generative-ai');
 
 // ─── CONFIG ──────────────────────────────────────────────────────────────────
 const DASHBOARD_PASSWORD = process.env.DASHBOARD_PASSWORD || '2580';
+const ADMIN_PHONE_RAW    = (process.env.ADMIN_PHONE || '917500167987').replace(/\D/g, '');
 
-// Admin phone number (with country code, digits only)
-const ADMIN_PHONE_RAW = (process.env.ADMIN_PHONE || '917500167987').replace(/\D/g, '');
-
-// ─── PRESERVE ORIGINAL CONSOLE ───────────────────────────────────────────────
+// ─── CONSOLE LOGGING WITH SPAM FILTER ────────────────────────────────────────
 const _orig = {
     log:   console.log.bind(console),
     warn:  console.warn.bind(console),
@@ -45,7 +46,6 @@ const _orig = {
     info:  console.info.bind(console),
 };
 
-// Suppress noisy Baileys crypto/session logs
 const SPAM_KEYWORDS = [
     'SessionEntry', 'Closing session', '_chains', 'currentRatchet',
     'ephemeralKeyPair', 'lastRemoteEphemeralKey', 'registrationId',
@@ -71,12 +71,15 @@ console.info  = (...a) => { if (!isSpam(a)) _orig.info(...a); };
 const BOOT_TIME      = Date.now();
 const STATE_FILE     = './bot_state.json';
 
-let isBotActive      = true;
-let isConnected      = false;
+let isBotActive        = true;
+let isConnected        = false;
 let currentPairingCode = null;
 let currentQrDataUrl   = null;
 let activeSocket       = null;
 const activityLogs     = [];
+
+// Track message IDs sent by our bot so we don't reply to our own echo
+const botSentMsgIds = new Set();
 
 function addActivityLog(sender, message, reply, status) {
     const time = new Date().toLocaleTimeString('en-IN', {
@@ -118,7 +121,7 @@ function loadBusinessKnowledge() {
             const c = fs.readFileSync('./business_info.txt', 'utf8').trim();
             if (c.length > 10) { cachedSystemPrompt = c; }
         }
-        _orig.log('business_info.txt loaded.');
+        _orig.log('✅ business_info.txt loaded into memory cache.');
     } catch (e) {
         _orig.error('business_info.txt load error:', e.message);
     }
@@ -127,7 +130,7 @@ loadBusinessKnowledge();
 
 if (fs.existsSync('./business_info.txt')) {
     fs.watchFile('./business_info.txt', { interval: 5000 }, () => {
-        _orig.log('business_info.txt changed — reloading AI prompt...');
+        _orig.log('🔄 business_info.txt changed — reloading AI prompt...');
         loadBusinessKnowledge();
         rebuildGemini();
     });
@@ -135,7 +138,7 @@ if (fs.existsSync('./business_info.txt')) {
 
 // ─── GEMINI ENGINE ────────────────────────────────────────────────────────────
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
-if (!GEMINI_API_KEY) _orig.error('CRITICAL: GEMINI_API_KEY is missing in .env!');
+if (!GEMINI_API_KEY) _orig.error('❌ CRITICAL: GEMINI_API_KEY is missing in .env!');
 
 const genAI = new GoogleGenerativeAI(GEMINI_API_KEY || 'MISSING');
 const MODEL_LIST = ['gemini-2.5-flash', 'gemini-2.5-flash-lite', 'gemini-1.5-flash'];
@@ -151,7 +154,7 @@ function rebuildGemini(modelName) {
             generationConfig: { maxOutputTokens: 300, temperature: 0.7, topP: 0.95 },
         });
         activeModelName = name;
-        _orig.log('Gemini model ready: ' + name);
+        _orig.log('🧠 Gemini model ready: ' + name);
     } catch (e) {
         _orig.error('Gemini init failed [' + name + ']:', e.message);
     }
@@ -170,7 +173,7 @@ const activeGenerations = new Set();
 
 async function askGemini(userId, userText) {
     if (activeGenerations.has(userId)) {
-        _orig.log('Already processing for ' + userId + ' — skipping duplicate');
+        _orig.log('⏳ Already processing for ' + userId + ' — skipping duplicate');
         return null;
     }
     activeGenerations.add(userId);
@@ -193,20 +196,20 @@ async function askGemini(userId, userText) {
             const result = await aiModel.generateContent(prompt);
             reply = fixFormatting(result.response.text().trim());
             const ms = Date.now() - t0;
-            _orig.log('Gemini replied in ' + ms + 'ms [' + activeModelName + ']');
+            _orig.log('⚡ Gemini replied in ' + ms + 'ms [' + activeModelName + ']');
             history.push({ role: 'Customer', text: userText });
             history.push({ role: 'Assistant', text: reply });
             if (history.length > 10) history.splice(0, 2);
             break;
         } catch (err) {
-            _orig.warn('Gemini [' + modelName + '] error: ' + err.message.slice(0, 120));
+            _orig.warn('⚠️ Gemini [' + modelName + '] error: ' + err.message.slice(0, 120));
         }
     }
 
     activeGenerations.delete(userId);
 
     if (!reply) {
-        return 'Namaste! Abhi server thoda busy hai. Kripya 2 minute baad dobara message karein. Products ke liye visit karein: https://grabnext.pages.dev';
+        return 'Namaste! 🙏 Abhi server thoda busy hai. Kripya 2 minute baad dobara message karein.\nHamare digital products check karne ke liye visit karein: https://grabnext.pages.dev';
     }
     return reply;
 }
@@ -229,23 +232,26 @@ function isDuplicate(id) {
     return false;
 }
 
-// ─── ROBUST SENDER — NEVER uses quoted messages ───────────────────────────────
+// ─── ROBUST SENDER (NO QUOTED KEYS) ───────────────────────────────────────────
 async function deliverReply(sock, targetJid, text) {
     for (let attempt = 1; attempt <= 3; attempt++) {
         try {
             const sent = await sock.sendMessage(targetJid, { text: text });
-            if (sent) {
-                _orig.log('Delivered to ' + targetJid + ' (attempt ' + attempt + ')');
+            if (sent && sent.key && sent.key.id) {
+                botSentMsgIds.add(sent.key.id);
+                if (botSentMsgIds.size > 2000) botSentMsgIds.delete(botSentMsgIds.values().next().value);
+                storeMsg(sent.key, sent.message);
+                _orig.log('✅ Delivered to ' + targetJid + ' (attempt ' + attempt + ')');
                 return sent;
             }
         } catch (e) {
-            _orig.warn('Send attempt ' + attempt + ' to ' + targetJid + ' failed: ' + e.message);
+            _orig.warn('⚠️ Send attempt ' + attempt + ' to ' + targetJid + ' failed: ' + e.message);
         }
         if (attempt < 3) {
-            await new Promise(r => setTimeout(r, attempt * 1200));
+            await new Promise(r => setTimeout(r, attempt * 1000));
         }
     }
-    _orig.error('ALL 3 DELIVERY ATTEMPTS FAILED for ' + targetJid);
+    _orig.error('❌ ALL 3 DELIVERY ATTEMPTS FAILED for ' + targetJid);
     return null;
 }
 
@@ -264,29 +270,28 @@ function scheduleReply(sock, from, text) {
         const combined = q.parts.join(' ').trim();
         pendingQueues.delete(from);
 
-        _orig.log('\nPROCESSING: ' + from);
-        _orig.log('   Query: "' + combined + '"');
+        _orig.log('\n🚀 [AI PROCESSING] Target: ' + from);
+        _orig.log('   📝 Query: "' + combined + '"');
 
         try { await sock.sendPresenceUpdate('composing', from); } catch (_) {}
 
         const reply = await askGemini(from, combined);
 
         if (!reply) {
-            _orig.warn('   AI returned null (duplicate guard). Skipping.');
+            _orig.warn('   ⚠️ AI returned null. Skipping send.');
             try { await sock.sendPresenceUpdate('paused', from); } catch (_) {}
             return;
         }
 
-        _orig.log('   AI Reply ready: "' + reply.slice(0, 80) + '..."');
+        _orig.log('   🤖 AI Reply ready: "' + reply.slice(0, 80) + '..."');
 
         const sent = await deliverReply(sock, from, reply);
 
         if (sent) {
-            storeMsg(sent.key, sent.message);
-            _orig.log('   SUCCESS — reply delivered to ' + from);
+            _orig.log('   ✅ SUCCESS — reply sent to ' + from);
             addActivityLog(from.replace(/@.+/, ''), combined, reply, 'replied');
         } else {
-            _orig.error('   FAILED — could not deliver to ' + from);
+            _orig.error('   ❌ FAILED — could not deliver to ' + from);
             addActivityLog(from.replace(/@.+/, ''), combined, 'Delivery failed', 'failed');
         }
 
@@ -313,32 +318,7 @@ function extractText(msg) {
     ).trim();
 }
 
-// ─── ADMIN DETECTOR (by phone number, for messages from other devices) ────────
-function isAdminPhone(msg) {
-    if (!ADMIN_PHONE_RAW) return false;
-    const jid = msg && msg.key && msg.key.remoteJid ? msg.key.remoteJid : '';
-    const par = msg && msg.key && msg.key.participant ? msg.key.participant : '';
-    return jid.startsWith(ADMIN_PHONE_RAW + '@') || par.startsWith(ADMIN_PHONE_RAW + '@');
-}
-
 // ─── CORE MESSAGE HANDLER ─────────────────────────────────────────────────────
-/**
- * MESSAGE ROUTING LOGIC:
- *
- * WhatsApp Multi-Device has 3 types of inbound messages:
- *
- * 1. ADMIN SELF-CHAT (fromMe=true):
- *    Admin types ".bot on" to their OWN WhatsApp number → fromMe=true
- *    → Allow dot-commands, skip non-dot (those are bot's own outgoing replies)
- *
- * 2. ADMIN FROM DIFFERENT DEVICE (fromMe=false, phone=917500167987):
- *    Admin uses a second phone/device to send commands → fromMe=false
- *    → Allow dot-commands AND ignore non-commands
- *
- * 3. CUSTOMER (fromMe=false, phone=different):
- *    Any other person messages → Customer
- *    → Send AI reply if bot is ACTIVE
- */
 async function handleMessage(sock, msg) {
     const from   = (msg && msg.key && msg.key.remoteJid) ? msg.key.remoteJid : '';
     const msgId  = (msg && msg.key && msg.key.id)        ? msg.key.id        : '';
@@ -346,13 +326,18 @@ async function handleMessage(sock, msg) {
 
     if (!msg || !msg.message || !from || !msgId) return;
 
+    // Ignore messages that were sent by the bot process itself (prevent reply loops)
+    if (botSentMsgIds.has(msgId)) {
+        return;
+    }
+
     if (isDuplicate(msgId)) {
-        _orig.log('Duplicate skipped: ' + msgId);
         return;
     }
 
     storeMsg(msg.key, msg.message);
 
+    // Skip groups, status broadcasts, newsletters
     if (from.endsWith('@g.us'))            return;
     if (from.includes('status@broadcast')) return;
     if (from.includes('newsletter'))       return;
@@ -360,103 +345,48 @@ async function handleMessage(sock, msg) {
     const text = extractText(msg);
     if (!text) return;
 
-    const cmd = text.toLowerCase().trim();
-    _orig.log('\n[MSG] from=' + from + ' | fromMe=' + fromMe + ' | text="' + text + '"');
+    const cleanLower = text.toLowerCase().trim();
+    _orig.log('\n📩 [MSG INBOUND] from=' + from + ' | fromMe=' + fromMe + ' | text="' + text + '"');
 
-    // ── CASE 1: ADMIN SELF-CHAT (fromMe=true) ─────────────────────────────────
-    if (fromMe) {
-        // Non-dot messages = bot's own outgoing replies echoing back → SKIP
-        if (!cmd.startsWith('.')) {
-            _orig.log('   Bot own outgoing reply — skipped');
-            return;
-        }
-
-        // Dot-command from admin self-chat
-        _orig.log('   [ADMIN SELF-CHAT COMMAND]');
-
-        if (cmd === '.bot off') {
-            saveBotState(false);
-            try { await sock.sendMessage(from, { text: 'Bot PAUSED — Customers ko reply nahi jayega.' }); } catch (_) {}
-            _orig.log('Bot PAUSED by admin');
-            return;
-        }
-        if (cmd === '.bot on') {
-            saveBotState(true);
-            try { await sock.sendMessage(from, { text: 'Bot ACTIVE — Customers ko auto-reply milega!' }); } catch (_) {}
-            _orig.log('Bot ACTIVATED by admin');
-            return;
-        }
-        if (cmd === '.bot status') {
-            const st = isBotActive ? 'ACTIVE' : 'PAUSED';
-            const up = Math.round((Date.now() - BOOT_TIME) / 60000);
-            try { await sock.sendMessage(from, { text: 'Status: ' + st + '\nModel: ' + activeModelName + '\nUptime: ' + up + ' min\nLogs: ' + activityLogs.length }); } catch (_) {}
-            return;
-        }
-        if (cmd.startsWith('.test')) {
-            const q = text.slice(5).trim() || 'GrabNext products batao.';
-            _orig.log('Self-test: "' + q + '"');
-            const r = await askGemini('__test__', q);
-            try { await sock.sendMessage(from, { text: r || 'No reply generated.' }); } catch (_) {}
-            return;
-        }
-        if (cmd === '.bot help') {
-            try { await sock.sendMessage(from, { text: 'Commands:\n.bot on\n.bot off\n.bot status\n.test <query>\n.bot help' }); } catch (_) {}
-            return;
-        }
-        _orig.log('   Unknown self-chat command — ignored');
+    // ── 1. CONTROL COMMANDS (.bot on / off / status / help) ────────────────────
+    if (cleanLower === '.bot off') {
+        saveBotState(false);
+        await deliverReply(sock, from, '🔴 *Bot PAUSED* — Customers ko ab AI reply nahi jayega.');
+        _orig.log('🛑 Bot PAUSED');
+        return;
+    }
+    if (cleanLower === '.bot on') {
+        saveBotState(true);
+        await deliverReply(sock, from, '🟢 *Bot ACTIVE* — Auto-reply chalu ho gaya hai! Direct message par AI reply karega.');
+        _orig.log('▶️ Bot ACTIVATED');
+        return;
+    }
+    if (cleanLower === '.bot status') {
+        const st = isBotActive ? '🟢 ACTIVE' : '🔴 PAUSED';
+        const up = Math.round((Date.now() - BOOT_TIME) / 60000);
+        await deliverReply(sock, from, '📊 *Bot Status Report*\nStatus: *' + st + '*\nModel: *' + activeModelName + '*\nUptime: *' + up + ' min*\nTotal Logs: ' + activityLogs.length);
+        return;
+    }
+    if (cleanLower === '.bot help') {
+        await deliverReply(sock, from, '🤖 *Available Commands:*\n.bot on — Bot chalu karein\n.bot off — Bot band karein\n.bot status — Status check karein\n\n💡 *Note:* Kisi bhi normal message ("Hi", "products", "price") par bot DIRECT reply karega! (.test likhne ki zaroorat nahi hai)');
         return;
     }
 
-    // ── CASE 2: ADMIN FROM DIFFERENT DEVICE (fromMe=false, phone match) ────────
-    if (isAdminPhone(msg)) {
-        _orig.log('   [ADMIN PHONE MATCH]: ' + from);
-
-        if (cmd === '.bot off') {
-            saveBotState(false);
-            await deliverReply(sock, from, 'Bot PAUSED — Customers ko reply nahi jayega.');
-            _orig.log('Bot PAUSED by admin');
-            return;
-        }
-        if (cmd === '.bot on') {
-            saveBotState(true);
-            await deliverReply(sock, from, 'Bot ACTIVE — Customers ko auto-reply milega!');
-            _orig.log('Bot ACTIVATED by admin');
-            return;
-        }
-        if (cmd === '.bot status') {
-            const st = isBotActive ? 'ACTIVE' : 'PAUSED';
-            const up = Math.round((Date.now() - BOOT_TIME) / 60000);
-            await deliverReply(sock, from, 'Status: ' + st + '\nModel: ' + activeModelName + '\nUptime: ' + up + ' min');
-            return;
-        }
-        if (cmd.startsWith('.test')) {
-            const q = text.slice(5).trim() || 'GrabNext products batao.';
-            _orig.log('Admin test: "' + q + '"');
-            const r = await askGemini('__admin_test__', q);
-            await deliverReply(sock, from, r || 'No reply generated.');
-            return;
-        }
-        if (cmd === '.bot help') {
-            await deliverReply(sock, from, 'Commands:\n.bot on\n.bot off\n.bot status\n.test <query>\n.bot help');
-            return;
-        }
-        _orig.log('   Admin non-command — ignored');
-        return;
-    }
-
-    // ── CASE 3: CUSTOMER MESSAGE ───────────────────────────────────────────────
+    // ── 2. CHECK IF BOT IS PAUSED ─────────────────────────────────────────────
     if (!isBotActive) {
-        _orig.log('   Bot PAUSED — dropped message from ' + from);
+        _orig.log('   ⏸️ Bot is PAUSED — dropping message from ' + from);
         return;
     }
 
-    _orig.log('   [CUSTOMER] Queuing AI reply for ' + from);
+    // ── 3. DIRECT AI REPLY (FOR BOTH ADMIN AND OTHER USERS) ────────────────────
+    // Har normal message par direct AI reply dega (bina kisi .test prefix ke)!
+    _orig.log('   ✨ Direct message detected — queuing AI reply for ' + from);
     scheduleReply(sock, from, text);
 }
 
 // ─── WHATSAPP CONNECTION ──────────────────────────────────────────────────────
 async function startBot() {
-    _orig.log('Connecting to WhatsApp...');
+    _orig.log('🔄 Connecting to WhatsApp...');
 
     const { state, saveCreds } = await useMultiFileAuthState('auth_session');
     const { version }          = await fetchLatestBaileysVersion();
@@ -477,7 +407,6 @@ async function startBot() {
                 const stored = msgStore.get(key.id);
                 if (stored) return stored;
             }
-            // Fallback: return empty message to prevent "Waiting for this message"
             return { conversation: '' };
         },
     });
@@ -492,7 +421,7 @@ async function startBot() {
                 try {
                     const code = await sock.requestPairingCode(rawPhone);
                     currentPairingCode = code;
-                    _orig.log('\n' + '='.repeat(50) + '\nPAIRING CODE: ' + code + '\n' + '='.repeat(50) + '\n');
+                    _orig.log('\n' + '='.repeat(50) + '\n👉 PAIRING CODE:  ' + code + '\n' + '='.repeat(50) + '\n');
                 } catch (e) {
                     _orig.error('Pairing code error:', e.message);
                 }
@@ -503,9 +432,9 @@ async function startBot() {
     sock.ev.on('creds.update', saveCreds);
 
     sock.ev.on('connection.update', async (update) => {
-        const connection    = update.connection;
+        const connection     = update.connection;
         const lastDisconnect = update.lastDisconnect;
-        const qr            = update.qr;
+        const qr             = update.qr;
 
         if (qr) {
             try { currentQrDataUrl = await QRCode.toDataURL(qr); } catch (_) {}
@@ -514,23 +443,24 @@ async function startBot() {
             isConnected = false;
             const code      = lastDisconnect && lastDisconnect.error && lastDisconnect.error.output ? lastDisconnect.error.output.statusCode : 0;
             const reconnect = code !== DisconnectReason.loggedOut;
-            _orig.log('Disconnected (code=' + code + '). Reconnect=' + reconnect);
+            _orig.log('⚠️ Disconnected (code=' + code + '). Reconnect=' + reconnect);
             if (reconnect) setTimeout(startBot, 4000);
-            else           _orig.error('Logged out — delete auth_session and restart server.');
+            else           _orig.error('❌ Logged out — delete auth_session and restart server.');
         } else if (connection === 'open') {
             isConnected        = true;
             currentPairingCode = null;
             currentQrDataUrl   = null;
-            _orig.log('\n' + '='.repeat(50) + '\nBOT ONLINE — STATUS: ' + (isBotActive ? 'ACTIVE (ON)' : 'PAUSED (OFF)') + '\n' + '='.repeat(50) + '\n');
+            _orig.log('\n' + '='.repeat(50) + '\n⚡ BOT ONLINE — STATUS: [' + (isBotActive ? 'ACTIVE (ON)' : 'PAUSED (OFF)') + ']\n' + '='.repeat(50) + '\n');
         }
     });
 
+    // Listen to incoming messages (handles notify and all message updates)
     sock.ev.on('messages.upsert', (upsert) => {
-        if (!upsert || upsert.type !== 'notify') return;
+        if (!upsert || !upsert.messages) return;
         for (const msg of upsert.messages) {
             setImmediate(() =>
                 handleMessage(sock, msg).catch(e =>
-                    _orig.error('handleMessage crash:', e.message, e.stack ? e.stack.split('\n')[1] : '')
+                    _orig.error('❌ handleMessage crash:', e.message, e.stack ? e.stack.split('\n')[1] : '')
                 )
             );
         }
@@ -547,7 +477,7 @@ app.use(express.static(path.join(__dirname, 'public')));
 
 app.get('/', (req, res) => {
     const p = path.join(__dirname, 'public', 'index.html');
-    fs.existsSync(p) ? res.sendFile(p) : res.send('<h2>GrabNext AI Bot Running</h2>');
+    fs.existsSync(p) ? res.sendFile(p) : res.send('<h2>GrabNext AI Bot Running ✅</h2>');
 });
 
 function requireAuth(req, res, next) {
@@ -578,7 +508,7 @@ app.get('/api/status', requireAuth, (req, res) => {
 
 app.post('/api/toggle', requireAuth, (req, res) => {
     saveBotState(!isBotActive);
-    _orig.log('Bot toggled via Dashboard: ' + (isBotActive ? 'ACTIVE' : 'PAUSED'));
+    _orig.log('🔘 Bot toggled via Dashboard: ' + (isBotActive ? 'ACTIVE' : 'PAUSED'));
     res.json({ success: true, active: isBotActive });
 });
 
@@ -595,7 +525,7 @@ app.post('/api/knowledge', requireAuth, (req, res) => {
     fs.writeFileSync('./business_info.txt', content, 'utf8');
     cachedSystemPrompt = content;
     rebuildGemini();
-    _orig.log('Knowledge updated via Dashboard');
+    _orig.log('📝 Knowledge updated via Dashboard');
     res.json({ success: true });
 });
 
@@ -627,14 +557,14 @@ app.get('/api/activity', requireAuth, (req, res) => {
 
 // ─── LAUNCH ───────────────────────────────────────────────────────────────────
 app.listen(PORT, HOST, () => {
-    _orig.log('='.repeat(50));
-    _orig.log('WEB DASHBOARD: http://localhost:' + PORT);
-    _orig.log('Dashboard PIN: ' + DASHBOARD_PASSWORD);
-    _orig.log('Admin Phone: ' + ADMIN_PHONE_RAW);
-    _orig.log('='.repeat(50));
+    _orig.log('\n' + '='.repeat(50));
+    _orig.log('🌐 WEB DASHBOARD: http://0.0.0.0:' + PORT);
+    _orig.log('🔒 DASHBOARD PASSWORD: ' + DASHBOARD_PASSWORD);
+    _orig.log('👑 Admin Phone: ' + ADMIN_PHONE_RAW);
+    _orig.log('='.repeat(50) + '\n');
 });
 
 startBot().catch(err => {
-    _orig.error('Fatal startup error:', err.message);
+    _orig.error('❌ Fatal startup error:', err.message);
     process.exit(1);
 });
