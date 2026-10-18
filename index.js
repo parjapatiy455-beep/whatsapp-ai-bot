@@ -404,10 +404,12 @@ async function handleMessage(sock, msg) {
 
 // ─── EXPRESS WEB DASHBOARD ────────────────────────────────────────────────────
 const app = express();
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || process.env.SERVER_PORT || 3000;
+const HOST = '0.0.0.0';
 
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
+
 
 // 1. Live Bot Status Endpoint
 app.get('/api/status', (req, res) => {
@@ -490,9 +492,6 @@ app.get('/api/activity', (req, res) => {
 });
 
 // ─── START WEB SERVER & BOT ───────────────────────────────────────────────────
-const PORT = process.env.PORT || process.env.SERVER_PORT || 3000;
-const HOST = '0.0.0.0';
-
 app.listen(PORT, HOST, () => {
     _orig.log(`\n==================================================`);
     _orig.log(`🌐 WEB DASHBOARD RUNNING AT: http://${HOST}:${PORT}`);
@@ -503,4 +502,5 @@ startBot().catch(err => {
     _orig.error('❌ Fatal bot crash:', err);
     process.exit(1);
 });
+
 
