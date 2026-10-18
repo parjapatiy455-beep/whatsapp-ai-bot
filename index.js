@@ -352,11 +352,6 @@ async function connectToWhatsApp() {
 
                     saveToMessageStore(msg.key, msg.message);
 
-                    const msgTimestamp = Number(msg.messageTimestamp || 0);
-                    if (msgTimestamp > 0 && msgTimestamp < BOOT_TIMESTAMP - 15) {
-                        return; // Ignore old stored history
-                    }
-
                     const from = msg.key.remoteJid;
                     if (!from || from.endsWith('@g.us') || from.includes('status@broadcast') || from.includes('newsletter')) {
                         return;
@@ -364,6 +359,8 @@ async function connectToWhatsApp() {
 
                     const text = extractCleanText(msg);
                     if (!text) return;
+
+                    console.log(`\n📩 [INBOUND CHAT] from: ${from} | fromMe: ${msg.key.fromMe} | text: "${text}"`);
 
                     const cleanLower = text.toLowerCase().trim();
 
@@ -410,10 +407,12 @@ async function connectToWhatsApp() {
 
                     // ── CHECK IF BOT IS PAUSED ───────────────────────────────
                     if (!isBotActive) {
-                        return; // Bot paused, skip customer message
+                        console.log(`⏸️ Bot is PAUSED — skipping message from ${from}`);
+                        return;
                     }
 
                     // ── DIRECT ULTRA-FAST AI REPLY (Customers & Admin) ────────
+                    console.log(`✨ Triggering instant AI reply for ${from}`);
                     enqueueCustomerMessage(sock, from, msg, text);
 
                 } catch (err) {}
